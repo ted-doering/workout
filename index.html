@@ -38,16 +38,9 @@
       </div>
       <div style="border-radius:14px;background:var(--color-surface);box-shadow:var(--shadow-lg);padding:20px;display:flex;flex-direction:column;gap:12px">
         <button class="btn btn-primary btn-block" onClick="{{ sync.onGoogle }}" style="gap:9px;justify-content:center"><i class="ph ph-google-logo" style="font-size:18px"></i>Continue with Google</button>
-        <div style="display:flex;align-items:center;gap:10px;color:color-mix(in srgb,var(--color-text) 32%,transparent);font-size:11px;text-transform:uppercase;letter-spacing:.06em">
-          <span style="flex:1;height:1px;background:var(--color-divider)"></span>or email<span style="flex:1;height:1px;background:var(--color-divider)"></span>
-        </div>
-        <input class="input" type="email" autocomplete="email" placeholder="Email" value="{{ sync.authEmail }}" onInput="{{ sync.onEmail }}" onKeyDown="{{ sync.onKey }}">
-        <input class="input" type="password" autocomplete="current-password" placeholder="Password" value="{{ sync.authPass }}" onInput="{{ sync.onPass }}" onKeyDown="{{ sync.onKey }}">
         <sc-if value="{{ sync.authErr }}" hint-placeholder-val="{{ false }}">
           <div style="font-size:12px;color:#ff6b8a">{{ sync.authErr }}</div>
         </sc-if>
-        <button class="btn btn-secondary btn-block" onClick="{{ sync.onSubmit }}">{{ sync.submitLabel }}</button>
-        <button onClick="{{ sync.toggleMode }}" style="background:none;border:none;padding:2px;cursor:pointer;font:inherit;font-size:13px;color:var(--color-accent-300);align-self:center">{{ sync.toggleLabel }}</button>
       </div>
       <button onClick="{{ sync.onSkip }}" style="background:none;border:none;cursor:pointer;font:inherit;font-size:13px;color:color-mix(in srgb,var(--color-text) 52%,transparent);align-self:center">Use on this device without signing in</button>
       <sc-if value="{{ sync.connecting }}" hint-placeholder-val="{{ false }}"><div style="text-align:center;font-size:12px;color:color-mix(in srgb,var(--color-text) 40%,transparent)">Connecting to the cloud…</div></sc-if>
@@ -300,21 +293,10 @@
       </sc-if>
       <sc-if value="{{ sync.signedOut }}" hint-placeholder-val="{{ true }}">
         <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--color-divider)">
-          <button class="btn btn-secondary btn-block" onClick="{{ sync.onGoogle }}" style="gap:9px;justify-content:center"><i class="ph ph-google-logo" style="font-size:18px"></i>Continue with Google</button>
-          <div style="display:flex;align-items:center;gap:10px;color:color-mix(in srgb,var(--color-text) 32%,transparent);font-size:11px;text-transform:uppercase;letter-spacing:.06em">
-            <span style="flex:1;height:1px;background:var(--color-divider)"></span>or email<span style="flex:1;height:1px;background:var(--color-divider)"></span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <input class="input" type="email" autocomplete="email" placeholder="Email" value="{{ sync.authEmail }}" onInput="{{ sync.onEmail }}" onKeyDown="{{ sync.onKey }}">
-            <input class="input" type="password" autocomplete="current-password" placeholder="Password" value="{{ sync.authPass }}" onInput="{{ sync.onPass }}" onKeyDown="{{ sync.onKey }}">
-          </div>
+          <button class="btn btn-primary btn-block" onClick="{{ sync.onGoogle }}" style="gap:9px;justify-content:center"><i class="ph ph-google-logo" style="font-size:18px"></i>Continue with Google</button>
           <sc-if value="{{ sync.authErr }}" hint-placeholder-val="{{ false }}">
             <div style="font-size:12px;color:#ff6b8a">{{ sync.authErr }}</div>
           </sc-if>
-          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-            <button class="btn btn-primary" onClick="{{ sync.onSubmit }}">{{ sync.submitLabel }}</button>
-            <button onClick="{{ sync.toggleMode }}" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-size:13px;color:var(--color-accent-300)">{{ sync.toggleLabel }}</button>
-          </div>
         </div>
       </sc-if>
     </div>
@@ -559,6 +541,8 @@ class Component extends DCLogic {
     if (c.indexOf('invalid-email')>=0) return 'That email address looks invalid';
     if (c.indexOf('weak-password')>=0) return 'Password must be at least 6 characters';
     if (c.indexOf('operation-not-allowed')>=0) return 'Enable Email/Password sign-in in the Firebase console';
+    if (c.indexOf('missing-password')>=0||c.indexOf('argument-error')>=0) return 'Enter your password';
+    if (c.indexOf('missing-email')>=0) return 'Enter your email';
     if (c.indexOf('too-many-requests')>=0) return 'Too many attempts — try again shortly';
     if (c.indexOf('permission-denied')>=0) return 'Firestore rules are blocking access — see setup note';
     if (c.indexOf('popup-closed-by-user')>=0||c.indexOf('cancelled-popup')>=0) return 'Sign-in window closed before finishing';
@@ -573,7 +557,10 @@ class Component extends DCLogic {
     this._auth.signInWithPopup(provider).catch(err => this.setState({ authErr:this.fbErr(err), syncStatus:'idle' }));
   }
   submitAuth(){ const email=(this.state.authEmail||'').trim(), pass=this.state.authPass||'';
-    if (!email || !pass){ this.setState({ authErr:'Enter an email and password' }); return; }
+    if (!email){ this.setState({ authErr:'Enter your email' }); return; }
+    if (email.toLowerCase() !== this.ALLOWED){ this.setState({ authErr:'This app is limited to '+this.ALLOWED }); return; }
+    if (!pass){ this.setState({ authErr:'Enter your password' }); return; }
+    if (this.state.authMode==='signup' && pass.length<6){ this.setState({ authErr:'Password must be at least 6 characters' }); return; }
     if (!this._auth){ this.setState({ authErr:'Cloud unavailable — working offline' }); return; }
     this.setState({ authErr:'', syncStatus:'syncing' });
     const p = this.state.authMode==='signup'
