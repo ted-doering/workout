@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="./support.js"></script>
+<script src="support.js"></script>
 </head>
 <body>
 <x-dc>
@@ -26,6 +26,35 @@
 <template id="__bundler_thumbnail">
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" fill="#423a6a"/><g fill="#f5f4ff"><rect x="62" y="81" width="56" height="18" rx="6"/><rect x="43" y="67" width="17" height="46" rx="7"/><rect x="18" y="55" width="19" height="70" rx="8"/><rect x="120" y="67" width="17" height="46" rx="7"/><rect x="143" y="55" width="19" height="70" rx="8"/></g></svg>
 </template>
+<sc-if value="{{ sync.gateOpen }}" hint-placeholder-val="{{ true }}">
+  <div style="position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:22px;color:var(--color-text);font-family:var(--font-body);background:radial-gradient(1100px 560px at 50% -12%, color-mix(in srgb, var(--color-accent) 13%, var(--color-bg)), var(--color-bg))">
+    <div style="width:100%;max-width:372px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:46px;height:46px;flex:none;border-radius:12px;display:grid;place-items:center;background:var(--color-accent-800);color:var(--color-accent-100)"><i class="ph ph-barbell" style="font-size:25px"></i></div>
+        <div>
+          <div style="font-family:var(--font-heading);font-weight:500;font-size:21px;line-height:1.1">Swim + Strength</div>
+          <div style="font-size:13px;color:color-mix(in srgb,var(--color-text) 55%,transparent)">Sign in to save &amp; sync your training</div>
+        </div>
+      </div>
+      <div style="border-radius:14px;background:var(--color-surface);box-shadow:var(--shadow-lg);padding:20px;display:flex;flex-direction:column;gap:12px">
+        <button class="btn btn-primary btn-block" onClick="{{ sync.onGoogle }}" style="gap:9px;justify-content:center"><i class="ph ph-google-logo" style="font-size:18px"></i>Continue with Google</button>
+        <div style="display:flex;align-items:center;gap:10px;color:color-mix(in srgb,var(--color-text) 32%,transparent);font-size:11px;text-transform:uppercase;letter-spacing:.06em">
+          <span style="flex:1;height:1px;background:var(--color-divider)"></span>or email<span style="flex:1;height:1px;background:var(--color-divider)"></span>
+        </div>
+        <input class="input" type="email" autocomplete="email" placeholder="Email" value="{{ sync.authEmail }}" onInput="{{ sync.onEmail }}" onKeyDown="{{ sync.onKey }}">
+        <input class="input" type="password" autocomplete="current-password" placeholder="Password" value="{{ sync.authPass }}" onInput="{{ sync.onPass }}" onKeyDown="{{ sync.onKey }}">
+        <sc-if value="{{ sync.authErr }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:12px;color:#ff6b8a">{{ sync.authErr }}</div>
+        </sc-if>
+        <button class="btn btn-secondary btn-block" onClick="{{ sync.onSubmit }}">{{ sync.submitLabel }}</button>
+        <button onClick="{{ sync.toggleMode }}" style="background:none;border:none;padding:2px;cursor:pointer;font:inherit;font-size:13px;color:var(--color-accent-300);align-self:center">{{ sync.toggleLabel }}</button>
+      </div>
+      <button onClick="{{ sync.onSkip }}" style="background:none;border:none;cursor:pointer;font:inherit;font-size:13px;color:color-mix(in srgb,var(--color-text) 52%,transparent);align-self:center">Use on this device without signing in</button>
+      <sc-if value="{{ sync.connecting }}" hint-placeholder-val="{{ false }}"><div style="text-align:center;font-size:12px;color:color-mix(in srgb,var(--color-text) 40%,transparent)">Connecting to the cloud…</div></sc-if>
+    </div>
+  </div>
+</sc-if>
+
 <div style="min-height:100vh;background:radial-gradient(1100px 520px at 18% -6%, color-mix(in srgb, var(--color-accent) 9%, var(--color-bg)), var(--color-bg)) fixed;color:var(--color-text);font-family:var(--font-body)">
 
   <header style="position:sticky;top:0;z-index:5;backdrop-filter:blur(9px);background:color-mix(in srgb, var(--color-bg) 80%, transparent);border-bottom:1px solid var(--color-divider)">
@@ -436,7 +465,7 @@ class Component extends DCLogic {
     timerLeft: null, notesOpen: false, expanded: {}, histOpen: {},
     editOpen:false, editKind:null, editSession:'lower',
     wInput:'', pushupsInput:'', pullupsInput:'',
-    authReady:false, user:null, authMode:'signin', authEmail:'', authPass:'', authErr:'', syncStatus:'idle',
+    authReady:false, user:null, authMode:'signin', authEmail:'', authPass:'', authErr:'', syncStatus:'idle', guest:false,
   };
 
   componentDidMount(){
@@ -445,6 +474,7 @@ class Component extends DCLogic {
       if (raw){ const d = JSON.parse(raw); this.setState({
         done:d.done||{}, weights:d.weights||{}, overrides:d.overrides||{},
         bodyWeights:d.bodyWeights||{}, goalLog:d.goalLog||{pushups:[],pullups:[]}, health:d.health||{connected:false} }); }
+      if (localStorage.getItem(this.STORE+'.guest')==='1') this.setState({ guest:true });
     } catch(e){}
     this._onResize = () => this.setState({ width: window.innerWidth });
     window.addEventListener('resize', this._onResize);
@@ -496,7 +526,8 @@ class Component extends DCLogic {
   }
   docRef(uid){ return this._db.collection('workouts').doc(uid); }
   onSignedIn(u){
-    this.setState({ syncStatus:'syncing' });
+    try { localStorage.removeItem(this.STORE+'.guest'); } catch(e){}
+    this.setState({ syncStatus:'syncing', guest:false });
     const ref = this.docRef(u.uid);
     ref.get().then(snap => {
       const local = this.dataSnapshot();
@@ -550,6 +581,7 @@ class Component extends DCLogic {
       : this._auth.signInWithEmailAndPassword(email, pass);
     p.catch(err => this.setState({ authErr:this.fbErr(err), syncStatus:'idle' })); }
   signOutUser(){ if (this._auth) this._auth.signOut(); }
+  skipLogin(){ try { localStorage.setItem(this.STORE+'.guest','1'); } catch(e){} this.setState({ guest:true }); }
   saveState(patch){
     this.setState(patch);
     const s = { ...this.state, ...patch };
@@ -727,6 +759,7 @@ class Component extends DCLogic {
       authEmail:this.state.authEmail, authPass:this.state.authPass, authErr:this.state.authErr,
       onEmail:ev=>this.setState({authEmail:ev.target.value}), onPass:ev=>this.setState({authPass:ev.target.value}),
       onKey:ev=>{ if(ev.key==='Enter') this.submitAuth(); },
+      gateOpen: !u && !this.state.guest, connecting: !ready, onSkip:()=>this.skipLogin(),
       onSubmit:()=>this.submitAuth(), onGoogle:()=>this.signInGoogle(), onSignOut:()=>this.signOutUser() };
 
     // ---- edit dialog ----
