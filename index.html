@@ -504,6 +504,7 @@ class Component extends DCLogic {
         this.setState({ authReady:true, user: u ? { uid:u.uid, email:u.email } : null, authErr:'', authPass:'' });
         if (u) this.onSignedIn(u); else this.setState({ syncStatus:'idle' });
       });
+      this._auth.getRedirectResult().catch(err => this.setState({ authReady:true, authErr:this.fbErr(err), syncStatus:'idle' }));
     } catch(e){ this.setState({ authReady:true, authErr:'Cloud unavailable — working offline' }); }
   }
   docRef(uid){ return this._db.collection('workouts').doc(uid); }
@@ -553,7 +554,7 @@ class Component extends DCLogic {
     this.setState({ authErr:'', syncStatus:'syncing' });
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt:'select_account', login_hint:this.ALLOWED });
-    this._auth.signInWithPopup(provider).catch(err => this.setState({ authErr:this.fbErr(err), syncStatus:'idle' }));
+    this._auth.signInWithRedirect(provider).catch(err => this.setState({ authErr:this.fbErr(err), syncStatus:'idle' }));
   }
   signOutUser(){ if (this._auth) this._auth.signOut(); }
   skipLogin(){ try { localStorage.setItem(this.STORE+'.guest','1'); } catch(e){} this.setState({ guest:true }); }
