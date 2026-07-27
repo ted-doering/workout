@@ -540,9 +540,8 @@ class Component extends DCLogic {
     if (c.indexOf('email-already-in-use')>=0) return 'Email already registered — sign in instead';
     if (c.indexOf('invalid-email')>=0) return 'That email address looks invalid';
     if (c.indexOf('weak-password')>=0) return 'Password must be at least 6 characters';
-    if (c.indexOf('operation-not-allowed')>=0) return 'Enable Email/Password sign-in in the Firebase console';
-    if (c.indexOf('missing-password')>=0||c.indexOf('argument-error')>=0) return 'Enter your password';
-    if (c.indexOf('missing-email')>=0) return 'Enter your email';
+    if (c.indexOf('operation-not-allowed')>=0||c.indexOf('configuration-not-found')>=0) return 'Turn on Google sign-in: Firebase Console → Authentication → Sign-in method → Google';
+    if (c.indexOf('argument-error')>=0||c.indexOf('internal-error')>=0) return 'Google sign-in isn’t configured yet — enable Google and add this domain to Authorized domains';
     if (c.indexOf('too-many-requests')>=0) return 'Too many attempts — try again shortly';
     if (c.indexOf('permission-denied')>=0) return 'Firestore rules are blocking access — see setup note';
     if (c.indexOf('popup-closed-by-user')>=0||c.indexOf('cancelled-popup')>=0) return 'Sign-in window closed before finishing';
