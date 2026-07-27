@@ -504,7 +504,7 @@ class Component extends DCLogic {
         this.setState({ authReady:true, user: u ? { uid:u.uid, email:u.email } : null, authErr:'', authPass:'' });
         if (u) this.onSignedIn(u); else this.setState({ syncStatus:'idle' });
       });
-      this._auth.getRedirectResult().catch(err => { try{console.error('getRedirectResult',err);}catch(e){} this.setState({ authReady:true, authErr:this.fbErr(err)+' ['+((err&&err.code)||'?')+']', syncStatus:'idle' }); });
+      this._auth.getRedirectResult().catch(err => { try{console.error('getRedirectResult',err);}catch(e){} this.setState({ authReady:true, syncStatus:'idle' }); });
     } catch(e){ this.setState({ authReady:true, authErr:'Cloud unavailable — working offline' }); }
   }
   docRef(uid){ return this._db.collection('workouts').doc(uid); }
