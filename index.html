@@ -13,9 +13,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script type="module" src="firebase-wk.js"></script>
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="icon" type="image/png" href="apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -460,9 +458,12 @@ class Component extends DCLogic {
     } catch(e){}
     this._onResize = () => this.setState({ width: window.innerWidth });
     window.addEventListener('resize', this._onResize);
-    if (typeof firebase !== 'undefined'){ this.initFirebase(); }
-    else { this._fbWait = setInterval(()=>{ if (typeof firebase !== 'undefined'){ clearInterval(this._fbWait); this._fbWait=null; this.initFirebase(); } }, 120);
-      setTimeout(()=>{ if (!this._fbInit){ if(this._fbWait) clearInterval(this._fbWait); this.setState({ authReady:true, authErr:'Cloud unavailable — working offline' }); } }, 8000); }
+    const tryInit = () => { if (window.WK){ this.initFirebase(); return true; } return false; };
+    if (!tryInit()){
+      window.addEventListener('wk-ready', tryInit, { once:true });
+      this._fbWait = setInterval(()=>{ if (tryInit()){ clearInterval(this._fbWait); this._fbWait=null; } }, 150);
+      setTimeout(()=>{ if (!this._fbInit){ if(this._fbWait) clearInterval(this._fbWait); this.setState({ authReady:true, authErr:'Cloud unavailable — working offline' }); } }, 10000);
+    }
   }
   componentWillUnmount(){
     if (this._onResize) window.removeEventListener('resize', this._onResize);
@@ -489,36 +490,30 @@ class Component extends DCLogic {
 
   initFirebase(){
     if (this._fbInit) return;
-    try {
-      this._app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(this.FB_CONFIG);
-      this._auth = firebase.auth();
-      this._db = firebase.firestore();
-      this._fbInit = true;
-      this._unsubAuth = this._auth.onAuthStateChanged(u => {
-        if (this._unsubDoc){ this._unsubDoc(); this._unsubDoc=null; }
-        if (u && (u.email||'').toLowerCase() !== this.ALLOWED){
-          this._auth.signOut();
-          this.setState({ authReady:true, user:null, authErr:'This app is limited to '+this.ALLOWED, syncStatus:'idle' });
-          return;
-        }
-        this.setState({ authReady:true, user: u ? { uid:u.uid, email:u.email } : null, authErr:'', authPass:'' });
-        if (u) this.onSignedIn(u); else this.setState({ syncStatus:'idle' });
-      });
-      this._auth.getRedirectResult().catch(err => { try{console.error('getRedirectResult',err);}catch(e){} this.setState({ authReady:true, syncStatus:'idle' }); });
-    } catch(e){ this.setState({ authReady:true, authErr:'Cloud unavailable — working offline' }); }
+    const WK = window.WK; if (!WK) return;
+    this._wk = WK; this._fbInit = true;
+    WK.onAuth(u => {
+      if (this._unsubDoc){ this._unsubDoc(); this._unsubDoc=null; }
+      if (u && (u.email||'').toLowerCase() !== this.ALLOWED){
+        WK.signOut();
+        this.setState({ authReady:true, user:null, authErr:'This app is limited to '+this.ALLOWED, syncStatus:'idle' });
+        return;
+      }
+      this.setState({ authReady:true, user: u ? { uid:u.uid, email:u.email } : null, authErr:'' });
+      if (u) this.onSignedIn(u); else this.setState({ syncStatus:'idle' });
+    });
   }
-  docRef(uid){ return this._db.collection('workouts').doc(uid); }
   onSignedIn(u){
     try { localStorage.removeItem(this.STORE+'.guest'); } catch(e){}
     this.setState({ syncStatus:'syncing', guest:false });
-    const ref = this.docRef(u.uid);
-    ref.get().then(snap => {
+    const WK=this._wk, uid=u.uid;
+    WK.getDoc(uid).then(snap => {
       const local = this.dataSnapshot();
-      const merged = snap.exists ? this.mergeData(snap.data()||{}, local) : local;
+      const merged = snap.exists() ? this.mergeData(snap.data()||{}, local) : local;
       this.applyData(merged, true);
-      return ref.set(merged, { merge:true }).then(()=>{
-        this._unsubDoc = ref.onSnapshot(s => {
-          if (!s.exists || s.metadata.hasPendingWrites) return;
+      return WK.setDoc(uid, merged).then(()=>{
+        this._unsubDoc = WK.onDoc(uid, s => {
+          if (!s.exists() || s.metadata.hasPendingWrites) return;
           this.applyData(s.data(), true);
           this.setState({ syncStatus:'synced' });
         }, () => this.setState({ syncStatus:'error' }));
@@ -527,11 +522,11 @@ class Component extends DCLogic {
     }).catch(e => this.setState({ syncStatus:'error', authErr: this.fbErr(e) }));
   }
   pushCloud(data){
-    if (!this._db || !this.state.user) return;
+    if (!this._wk || !this.state.user) return;
     this.setState({ syncStatus:'syncing' });
     if (this._cloudTimer) clearTimeout(this._cloudTimer);
     const uid = this.state.user.uid;
-    this._cloudTimer = setTimeout(()=>{ this.docRef(uid).set(data, { merge:true })
+    this._cloudTimer = setTimeout(()=>{ this._wk.setDoc(uid, data)
       .then(()=>this.setState({ syncStatus:'synced' }))
       .catch(()=>this.setState({ syncStatus:'error' })); }, 700);
   }
@@ -550,13 +545,11 @@ class Component extends DCLogic {
     if (c.indexOf('unauthorized-domain')>=0) return 'Add this domain to Firebase → Authentication → Settings → Authorized domains';
     return (err && err.message) || 'Something went wrong'; }
   signInGoogle(){
-    if (!this._auth){ this.setState({ authErr:'Cloud unavailable — working offline' }); return; }
+    if (!this._wk){ this.setState({ authErr:'Cloud unavailable — working offline' }); return; }
     this.setState({ authErr:'', syncStatus:'syncing' });
-    const provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({ prompt:'select_account', login_hint:this.ALLOWED });
-    this._auth.signInWithRedirect(provider).catch(err => { try{console.error('signInWithRedirect',err);}catch(e){} this.setState({ authErr:this.fbErr(err)+' ['+((err&&err.code)||'?')+']', syncStatus:'idle' }); });
+    this._wk.signInGoogle().catch(err => { try{console.error('signIn',err);}catch(e){} this.setState({ authErr:this.fbErr(err)+' ['+((err&&err.code)||'?')+']', syncStatus:'idle' }); });
   }
-  signOutUser(){ if (this._auth) this._auth.signOut(); }
+  signOutUser(){ if (this._wk) this._wk.signOut(); }
   skipLogin(){ try { localStorage.setItem(this.STORE+'.guest','1'); } catch(e){} this.setState({ guest:true }); }
   saveState(patch){
     this.setState(patch);
