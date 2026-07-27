@@ -555,17 +555,6 @@ class Component extends DCLogic {
     provider.setCustomParameters({ prompt:'select_account', login_hint:this.ALLOWED });
     this._auth.signInWithPopup(provider).catch(err => this.setState({ authErr:this.fbErr(err), syncStatus:'idle' }));
   }
-  submitAuth(){ const email=(this.state.authEmail||'').trim(), pass=this.state.authPass||'';
-    if (!email){ this.setState({ authErr:'Enter your email' }); return; }
-    if (email.toLowerCase() !== this.ALLOWED){ this.setState({ authErr:'This app is limited to '+this.ALLOWED }); return; }
-    if (!pass){ this.setState({ authErr:'Enter your password' }); return; }
-    if (this.state.authMode==='signup' && pass.length<6){ this.setState({ authErr:'Password must be at least 6 characters' }); return; }
-    if (!this._auth){ this.setState({ authErr:'Cloud unavailable — working offline' }); return; }
-    this.setState({ authErr:'', syncStatus:'syncing' });
-    const p = this.state.authMode==='signup'
-      ? this._auth.createUserWithEmailAndPassword(email, pass)
-      : this._auth.signInWithEmailAndPassword(email, pass);
-    p.catch(err => this.setState({ authErr:this.fbErr(err), syncStatus:'idle' })); }
   signOutUser(){ if (this._auth) this._auth.signOut(); }
   skipLogin(){ try { localStorage.setItem(this.STORE+'.guest','1'); } catch(e){} this.setState({ guest:true }); }
   saveState(patch){
@@ -744,9 +733,8 @@ class Component extends DCLogic {
       toggleMode:()=>this.setState({ authMode:this.state.authMode==='signup'?'signin':'signup', authErr:'' }),
       authEmail:this.state.authEmail, authPass:this.state.authPass, authErr:this.state.authErr,
       onEmail:ev=>this.setState({authEmail:ev.target.value}), onPass:ev=>this.setState({authPass:ev.target.value}),
-      onKey:ev=>{ if(ev.key==='Enter') this.submitAuth(); },
       gateOpen: !u && !this.state.guest, connecting: !ready, onSkip:()=>this.skipLogin(),
-      onSubmit:()=>this.submitAuth(), onGoogle:()=>this.signInGoogle(), onSignOut:()=>this.signOutUser() };
+      onGoogle:()=>this.signInGoogle(), onSignOut:()=>this.signOutUser() };
 
     // ---- edit dialog ----
     const optStyle = active => ({ padding:'8px 12px', borderRadius:'8px', cursor:'pointer', font:'inherit', fontSize:'13px',
